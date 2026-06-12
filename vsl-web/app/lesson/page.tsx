@@ -1,33 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { LABELS_URL } from "@/lib/constants";
 import { findLesson } from "@/lib/lessons";
-import { loadProgress, isLearned, type Progress } from "@/lib/progress";
+import { useLabels } from "@/lib/useLabels";
+import { useProgress } from "@/lib/useProgress";
+import { practiceUrl } from "@/lib/nav";
+import { isLearned, countLearned } from "@/lib/progress";
 
 function LessonInner() {
   const params = useSearchParams();
   const id = params.get("id") ?? "";
 
-  const [labels, setLabels] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState<Progress>({
-    words: {},
-    streak: 0,
-    bestStreak: 0,
-    score: 0,
-  });
-
-  useEffect(() => {
-    setProgress(loadProgress());
-    fetch(LABELS_URL)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: string[]) => setLabels(data))
-      .catch(() => setLabels([]))
-      .finally(() => setLoading(false));
-  }, []);
+  const { labels, loading } = useLabels();
+  const [progress] = useProgress();
 
   const lesson = useMemo(() => findLesson(labels, id), [labels, id]);
 
@@ -44,7 +31,7 @@ function LessonInner() {
     );
   }
 
-  const done = lesson.words.filter((w) => isLearned(progress, w)).length;
+  const done = countLearned(progress, lesson.words);
   const pct = Math.round((done / lesson.words.length) * 100);
   const firstTodo =
     lesson.words.find((w) => !isLearned(progress, w)) ?? lesson.words[0];
@@ -68,7 +55,7 @@ function LessonInner() {
 
       <div className="row" style={{ marginBottom: 18 }}>
         <Link
-          href={`/practice?word=${encodeURIComponent(firstTodo)}&lesson=${lesson.id}`}
+          href={practiceUrl(firstTodo, lesson.id)}
           className="btn btn--green btn--lg"
         >
           {done === 0 ? "▶️ Bắt đầu học bài" : done === lesson.words.length ? "🔁 Ôn lại bài" : "⏭️ Học tiếp"}
@@ -82,7 +69,7 @@ function LessonInner() {
           return (
             <Link
               key={w}
-              href={`/practice?word=${encodeURIComponent(w)}&lesson=${lesson.id}`}
+              href={practiceUrl(w, lesson.id)}
               className={`word-card ${learned ? "word-card--done" : ""}`}
             >
               {learned && <span className="badge">✓</span>}

@@ -1,40 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { LABELS_URL } from "@/lib/constants";
 import { buildLessons } from "@/lib/lessons";
+import { useLabels } from "@/lib/useLabels";
+import { useProgress } from "@/lib/useProgress";
+import { practiceUrl, lessonUrl } from "@/lib/nav";
 import {
   loadProgress,
   isLearned,
+  countLearned,
   resetProgress,
-  type Progress,
 } from "@/lib/progress";
 
 export default function Home() {
-  const [labels, setLabels] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { labels, loading } = useLabels();
+  const [progress, setProgress] = useProgress();
   const [query, setQuery] = useState("");
-  const [progress, setProgress] = useState<Progress>({
-    words: {},
-    streak: 0,
-    bestStreak: 0,
-    score: 0,
-  });
-
-  useEffect(() => {
-    setProgress(loadProgress());
-    fetch(LABELS_URL)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: string[]) => setLabels(data))
-      .catch(() => setLabels([]))
-      .finally(() => setLoading(false));
-  }, []);
 
   const lessons = useMemo(() => buildLessons(labels), [labels]);
 
   const learnedCount = useMemo(
-    () => labels.filter((w) => isLearned(progress, w)).length,
+    () => countLearned(progress, labels),
     [labels, progress]
   );
 
@@ -109,7 +96,7 @@ export default function Home() {
               return (
                 <Link
                   key={w}
-                  href={`/practice?word=${encodeURIComponent(w)}`}
+                  href={practiceUrl(w)}
                   className={`word-card ${done ? "word-card--done" : ""}`}
                 >
                   {done && <span className="badge">✓</span>}
@@ -123,13 +110,13 @@ export default function Home() {
         /* Mặc định: danh sách bài học theo chủ đề */
         <div className="lesson-grid">
           {lessons.map((l) => {
-            const done = l.words.filter((w) => isLearned(progress, w)).length;
+            const done = countLearned(progress, l.words);
             const pct = Math.round((done / l.words.length) * 100);
             const complete = done === l.words.length;
             return (
               <Link
                 key={l.id}
-                href={`/lesson?id=${l.id}`}
+                href={lessonUrl(l.id)}
                 className={`lesson-card lesson-card--${l.color}`}
               >
                 {complete && <span className="badge">✓</span>}

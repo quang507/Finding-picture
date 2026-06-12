@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSignPractice } from "@/lib/useSignPractice";
-import { CONFIDENCE_THRESHOLD, LABELS_URL } from "@/lib/constants";
+import { CONFIDENCE_THRESHOLD } from "@/lib/constants";
 import { recordAttempt } from "@/lib/progress";
 import { findLesson } from "@/lib/lessons";
+import { useLabels } from "@/lib/useLabels";
+import { practiceUrl, lessonUrl } from "@/lib/nav";
 import type { Prediction } from "@/lib/classifier";
 
 function PracticeInner() {
@@ -32,15 +34,7 @@ function PracticeInner() {
   const [step, setStep] = useState<"demo" | "practice">("demo");
 
   // Ngữ cảnh bài học: tìm từ kế tiếp để học liền mạch
-  const [labels, setLabels] = useState<string[]>([]);
-  useEffect(() => {
-    if (!lessonId) return;
-    fetch(LABELS_URL)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d: string[]) => setLabels(d))
-      .catch(() => setLabels([]));
-  }, [lessonId]);
-
+  const { labels } = useLabels();
   const lesson = useMemo(
     () => (lessonId ? findLesson(labels, lessonId) : undefined),
     [labels, lessonId]
@@ -64,15 +58,13 @@ function PracticeInner() {
     }
   };
 
+  // Cùng route nên Next không remount component -> phải tự reset state
   const goTo = (word: string) => {
-    const q = `/practice?word=${encodeURIComponent(word)}${
-      lessonId ? `&lesson=${lessonId}` : ""
-    }`;
     setPred(null);
     setDone(false);
     setStep("demo");
     setHasSample(true);
-    router.push(q);
+    router.push(practiceUrl(word, lessonId || undefined));
   };
 
   const correct =
@@ -81,7 +73,7 @@ function PracticeInner() {
 
   return (
     <main className="container">
-      <Link href={lesson ? `/lesson?id=${lesson.id}` : "/"} className="back">
+      <Link href={lesson ? lessonUrl(lesson.id) : "/"} className="back">
         ← {lesson ? lesson.title : "Danh sách từ"}
       </Link>
 
@@ -261,7 +253,7 @@ function PracticeInner() {
                     </button>
                   ) : (
                     <Link
-                      href={`/lesson?id=${lesson.id}`}
+                      href={lessonUrl(lesson.id)}
                       className="btn btn--yellow btn--lg btn--block"
                     >
                       🏁 Xong bài “{lesson.title}”!

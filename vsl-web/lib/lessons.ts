@@ -105,8 +105,13 @@ export function buildLessons(labels: string[]): Lesson[] {
   const lessons: Lesson[] = [];
 
   for (const t of TOPICS) {
-    const words = t.words.filter((w) => set.has(w));
-    words.forEach((w) => used.add(w));
+    const words: string[] = [];
+    for (const w of t.words) {
+      if (set.has(w)) {
+        words.push(w);
+        used.add(w);
+      }
+    }
     if (words.length) lessons.push({ ...t, words });
   }
 

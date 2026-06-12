@@ -13,16 +13,18 @@ export interface Progress {
   score: number; // tổng điểm (mỗi lần đúng +10)
 }
 
-const EMPTY: Progress = { words: {}, streak: 0, bestStreak: 0, score: 0 };
+export function emptyProgress(): Progress {
+  return { words: {}, streak: 0, bestStreak: 0, score: 0 };
+}
 
 export function loadProgress(): Progress {
-  if (typeof window === "undefined") return { ...EMPTY };
+  if (typeof window === "undefined") return emptyProgress();
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...EMPTY };
-    return { ...EMPTY, ...JSON.parse(raw) };
+    if (!raw) return emptyProgress();
+    return { ...emptyProgress(), ...JSON.parse(raw) };
   } catch {
-    return { ...EMPTY };
+    return emptyProgress();
   }
 }
 
@@ -57,6 +59,10 @@ export function isLearned(p: Progress, word: string): boolean {
   return (p.words[word]?.correct ?? 0) > 0;
 }
 
+export function countLearned(p: Progress, words: string[]): number {
+  return words.filter((w) => isLearned(p, w)).length;
+}
+
 export function resetProgress() {
-  save({ ...EMPTY });
+  save(emptyProgress());
 }

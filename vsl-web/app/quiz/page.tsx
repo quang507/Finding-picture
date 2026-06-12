@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LABELS_URL, CONFIDENCE_THRESHOLD } from "@/lib/constants";
+import { CONFIDENCE_THRESHOLD } from "@/lib/constants";
 import { useSignPractice } from "@/lib/useSignPractice";
+import { useLabels } from "@/lib/useLabels";
 import { recordAttempt } from "@/lib/progress";
 import type { Prediction } from "@/lib/classifier";
 
@@ -36,14 +37,10 @@ export default function QuizPage() {
     start,
   } = useSignPractice();
 
+  const { labels } = useLabels();
   useEffect(() => {
-    fetch(LABELS_URL)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((labels: string[]) =>
-        setDeck(shuffle(labels).slice(0, QUIZ_LEN))
-      )
-      .catch(() => setDeck([]));
-  }, []);
+    setDeck(shuffle(labels).slice(0, QUIZ_LEN));
+  }, [labels]);
 
   const target = deck[idx] ?? "";
   const finished = deck.length > 0 && idx >= deck.length;
