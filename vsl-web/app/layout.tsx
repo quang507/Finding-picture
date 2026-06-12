@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import DifyChatbot from "@/components/DifyChatbot";
 
 export const metadata: Metadata = {
   title: "Học Ngôn Ngữ Ký Hiệu VSL",
@@ -14,7 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        {children}
+        <DifyChatbot />
+      </body>
     </html>
   );
 }
