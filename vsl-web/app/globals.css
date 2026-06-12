@@ -439,6 +439,119 @@ a {
 .qdot--no { background: var(--pink); }
 .qdot--now { background: var(--yellow); transform: scale(1.15); }
 
+/* ---------- Lesson cards (home) ---------- */
+.lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.lesson-card {
+  position: relative;
+  border: var(--border) solid var(--ink);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 18px 18px 16px;
+  cursor: pointer;
+  background: var(--paper);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.lesson-card:hover {
+  transform: translate(-3px, -3px) rotate(-0.6deg);
+  box-shadow: var(--shadow-lg);
+}
+.lesson-card--yellow { background: var(--yellow); }
+.lesson-card--pink { background: var(--pink); }
+.lesson-card--blue { background: var(--blue); }
+.lesson-card--green { background: var(--green); }
+.lesson-card--purple { background: var(--purple); }
+.lesson-card--orange { background: var(--orange); }
+.lesson-emoji { font-size: 34px; line-height: 1; }
+.lesson-title {
+  font-size: 19px;
+  font-weight: 900;
+  margin: 8px 0 2px;
+  letter-spacing: -0.3px;
+}
+.lesson-meta { font-size: 13px; font-weight: 700; opacity: 0.8; }
+.lesson-bar {
+  height: 14px;
+  background: var(--paper);
+  border: var(--border) solid var(--ink);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.lesson-bar-fill {
+  height: 100%;
+  background: var(--ink);
+  transition: width 0.5s ease;
+}
+.lesson-head { text-align: center; }
+.word-num {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 0.55;
+}
+
+/* ---------- Stepper (practice) ---------- */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.step {
+  border: var(--border) solid var(--ink);
+  box-shadow: var(--shadow-sm);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 900;
+  background: var(--paper);
+}
+.step--on { background: var(--yellow); }
+.step--ok { background: var(--green); }
+.step-line {
+  flex: 0 0 24px;
+  height: 3px;
+  background: var(--ink);
+}
+
+/* ---------- Demo / veil / celebration ---------- */
+.cam-veil {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(17, 17, 17, 0.55);
+  color: var(--paper);
+  font-weight: 900;
+  font-size: 16px;
+  text-align: center;
+  padding: 16px;
+}
+.demo-placeholder {
+  border: var(--border) dashed var(--ink);
+  border-radius: var(--radius);
+  padding: 22px;
+  text-align: center;
+  background: var(--paper);
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+.confetti {
+  font-size: 26px;
+  letter-spacing: 6px;
+  animation: pop 0.5s ease;
+}
+.next-box { margin-top: 14px; }
+
 /* ---------- Animations ---------- */
 @keyframes pop {
   0% { transform: scale(0.6); opacity: 0; }

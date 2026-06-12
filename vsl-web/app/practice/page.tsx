@@ -1,16 +1,19 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSignPractice } from "@/lib/useSignPractice";
-import { CONFIDENCE_THRESHOLD } from "@/lib/constants";
+import { CONFIDENCE_THRESHOLD, LABELS_URL } from "@/lib/constants";
 import { recordAttempt } from "@/lib/progress";
+import { findLesson } from "@/lib/lessons";
 import type { Prediction } from "@/lib/classifier";
 
 function PracticeInner() {
   const params = useSearchParams();
+  const router = useRouter();
   const target = params.get("word") ?? "";
+  const lessonId = params.get("lesson") ?? "";
 
   const {
     videoRef,
@@ -26,6 +29,27 @@ function PracticeInner() {
   const [pred, setPred] = useState<Prediction | null>(null);
   const [done, setDone] = useState(false);
   const [hasSample, setHasSample] = useState(true);
+  const [step, setStep] = useState<"demo" | "practice">("demo");
+
+  // Ngữ cảnh bài học: tìm từ kế tiếp để học liền mạch
+  const [labels, setLabels] = useState<string[]>([]);
+  useEffect(() => {
+    if (!lessonId) return;
+    fetch(LABELS_URL)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: string[]) => setLabels(d))
+      .catch(() => setLabels([]));
+  }, [lessonId]);
+
+  const lesson = useMemo(
+    () => (lessonId ? findLesson(labels, lessonId) : undefined),
+    [labels, lessonId]
+  );
+  const idx = lesson ? lesson.words.indexOf(target) : -1;
+  const nextWord =
+    lesson && idx >= 0 && idx + 1 < lesson.words.length
+      ? lesson.words[idx + 1]
+      : null;
 
   const onStart = async () => {
     setPred(null);
@@ -40,15 +64,37 @@ function PracticeInner() {
     }
   };
 
+  const goTo = (word: string) => {
+    const q = `/practice?word=${encodeURIComponent(word)}${
+      lessonId ? `&lesson=${lessonId}` : ""
+    }`;
+    setPred(null);
+    setDone(false);
+    setStep("demo");
+    setHasSample(true);
+    router.push(q);
+  };
+
   const correct =
     pred && pred.label === target && pred.confidence >= CONFIDENCE_THRESHOLD;
   const sampleUrl = `/samples/${encodeURIComponent(target)}.mp4`;
 
   return (
     <main className="container">
-      <Link href="/" className="back">
-        ← Danh sách từ
+      <Link href={lesson ? `/lesson?id=${lesson.id}` : "/"} className="back">
+        ← {lesson ? lesson.title : "Danh sách từ"}
       </Link>
+
+      {/* Stepper */}
+      <div className="stepper">
+        <span className={`step ${step === "demo" ? "step--on" : "step--ok"}`}>
+          1 · Xem mẫu
+        </span>
+        <span className="step-line" />
+        <span className={`step ${step === "practice" ? "step--on" : ""}`}>
+          2 · Tập & chấm điểm
+        </span>
+      </div>
 
       <div className="practice-grid">
         {/* ----- CỘT TRÁI: CAMERA ----- */}
@@ -65,12 +111,20 @@ function PracticeInner() {
               </div>
             )}
             {phase === "recording" && <span className="overlay-rec">● REC</span>}
+            {step === "demo" && (
+              <div className="cam-veil">
+                <span>👀 Xem mẫu bên phải trước nhé</span>
+              </div>
+            )}
           </div>
 
           {pred && (
             <div className={`result ${correct ? "result--ok" : "result--no"}`}>
               {correct ? (
-                <div className="result-big">✅ Đúng rồi!</div>
+                <>
+                  <div className="result-big">✅ Đúng rồi! +10 điểm 🎉</div>
+                  <div className="confetti">🎉✨🎊</div>
+                </>
               ) : (
                 <>
                   <div className="result-big">❌ Chưa đúng</div>
@@ -104,7 +158,11 @@ function PracticeInner() {
         {/* ----- CỘT PHẢI: HƯỚNG DẪN & ĐIỀU KHIỂN ----- */}
         <div>
           <div className="panel-target">
-            <div className="label-kicker">Ký hiệu cần thực hiện</div>
+            <div className="label-kicker">
+              {lesson
+                ? `${lesson.emoji} ${lesson.title} · ${idx >= 0 ? idx + 1 : ""}/${lesson.words.length}`
+                : "Ký hiệu cần thực hiện"}
+            </div>
             <div className="label-word">{target || "—"}</div>
           </div>
 
@@ -116,50 +174,103 @@ function PracticeInner() {
 
           {!modelReady && !cameraError && (
             <div className="banner">
-              ⚙️ Chế độ xem trước: chưa có model AI nên chưa chấm điểm được.
-              Khung xương tay vẫn hoạt động! Chạy pipeline <code>training/</code>{" "}
-              để bật chấm điểm.
+              ⚙️ Chưa có model AI nên chưa chấm điểm được. Khung xương tay vẫn
+              hoạt động!
             </div>
           )}
 
-          <button
-            className="btn btn--green btn--lg btn--block"
-            onClick={onStart}
-            disabled={
-              phase === "loading" ||
-              phase === "countdown" ||
-              phase === "recording" ||
-              !!cameraError
-            }
-          >
-            {phase === "loading"
-              ? "⏳ Đang tải camera…"
-              : phase === "countdown"
-                ? `⏱️ ${count}`
-                : phase === "recording"
-                  ? "● Đang quay…"
-                  : done
-                    ? "🔁 Thử lại"
-                    : "🎬 Bắt đầu"}
-          </button>
+          {/* BƯỚC 1: XEM MẪU */}
+          {step === "demo" ? (
+            <>
+              {hasSample ? (
+                <video
+                  className="sample-video"
+                  src={sampleUrl}
+                  controls
+                  autoPlay
+                  loop
+                  muted
+                  onError={() => setHasSample(false)}
+                />
+              ) : (
+                <div className="demo-placeholder">
+                  <div style={{ fontSize: 40 }}>🎥</div>
+                  <div>Chưa có video mẫu cho từ này.</div>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    Xem hướng dẫn bên dưới rồi tự ký thử nhé.
+                  </div>
+                </div>
+              )}
 
-          {hasSample && (
-            <video
-              className="sample-video"
-              src={sampleUrl}
-              controls
-              loop
-              muted
-              onError={() => setHasSample(false)}
-            />
+              <ul className="tips">
+                <li>💡 Đứng cách camera ~1m, đủ sáng.</li>
+                <li>🖐️ Giữ tay trong khung, làm ký hiệu rõ ràng.</li>
+                <li>⏱️ Bấm “Tập thôi”, đếm 3-2-1 rồi ký trong ~2.5s.</li>
+                <li>🟦 Tay trái xanh dương · 🟩 tay phải xanh lá.</li>
+              </ul>
+
+              <button
+                className="btn btn--blue btn--lg btn--block"
+                onClick={() => setStep("practice")}
+                style={{ marginTop: 14 }}
+              >
+                🎬 Tập thôi →
+              </button>
+            </>
+          ) : (
+            /* BƯỚC 2: TẬP & CHẤM ĐIỂM */
+            <>
+              <button
+                className="btn btn--green btn--lg btn--block"
+                onClick={onStart}
+                disabled={
+                  phase === "loading" ||
+                  phase === "countdown" ||
+                  phase === "recording" ||
+                  !!cameraError
+                }
+              >
+                {phase === "loading"
+                  ? "⏳ Đang tải camera…"
+                  : phase === "countdown"
+                    ? `⏱️ ${count}`
+                    : phase === "recording"
+                      ? "● Đang quay…"
+                      : done
+                        ? "🔁 Thử lại"
+                        : "🎬 Bắt đầu ký"}
+              </button>
+
+              <button
+                className="btn btn--block"
+                onClick={() => setStep("demo")}
+                style={{ marginTop: 10 }}
+              >
+                👀 Xem lại mẫu
+              </button>
+
+              {/* Điều hướng bài học khi đã ký đúng */}
+              {correct && lesson && (
+                <div className="next-box">
+                  {nextWord ? (
+                    <button
+                      className="btn btn--yellow btn--lg btn--block"
+                      onClick={() => goTo(nextWord)}
+                    >
+                      ⏭️ Từ tiếp theo: {nextWord}
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/lesson?id=${lesson.id}`}
+                      className="btn btn--yellow btn--lg btn--block"
+                    >
+                      🏁 Xong bài “{lesson.title}”!
+                    </Link>
+                  )}
+                </div>
+              )}
+            </>
           )}
-
-          <ul className="tips">
-            <li>💡 Đứng cách camera ~1m, đủ sáng.</li>
-            <li>🖐️ Giữ tay trong khung, làm ký hiệu rõ ràng.</li>
-            <li>⏱️ Sau khi bấm Bắt đầu, đếm 3-2-1 rồi ký trong ~2.5s.</li>
-            <li>🟦 Tay trái xanh dương · 🟩 tay phải xanh lá.</li>
-          </ul>
         </div>
       </div>
     </main>
