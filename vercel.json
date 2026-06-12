@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd vsl-web && npm install && npm run build",
-  "outputDirectory": "vsl-web/.next",
-  "framework": "nextjs",
-  "installCommand": "cd vsl-web && npm install"
-}
