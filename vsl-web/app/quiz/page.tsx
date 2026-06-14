@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CONFIDENCE_THRESHOLD } from "@/lib/constants";
 import { useSignPractice } from "@/lib/useSignPractice";
 import { useLabels } from "@/lib/useLabels";
-import { recordAttempt } from "@/lib/progress";
+import { recordAttempt, loadProgress, dueWords } from "@/lib/progress";
+import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
 import type { Prediction } from "@/lib/classifier";
 
 const QUIZ_LEN = 8;
@@ -19,7 +21,10 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function QuizPage() {
+function QuizInner() {
+  const review = useSearchParams().get("mode") === "review";
+  const { labels } = useLabels();
+
   const [deck, setDeck] = useState<string[]>([]);
   const [idx, setIdx] = useState(0);
   const [results, setResults] = useState<boolean[]>([]);
@@ -37,10 +42,15 @@ export default function QuizPage() {
     start,
   } = useSignPractice();
 
-  const { labels } = useLabels();
+  const buildDeck = (ls: string[]) =>
+    review
+      ? dueWords(loadProgress(), ls)
+      : shuffle(ls).slice(0, QUIZ_LEN);
+
   useEffect(() => {
-    setDeck(shuffle(labels).slice(0, QUIZ_LEN));
-  }, [labels]);
+    setDeck(buildDeck(labels));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labels, review]);
 
   const target = deck[idx] ?? "";
   const finished = deck.length > 0 && idx >= deck.length;
@@ -56,7 +66,11 @@ export default function QuizPage() {
       result.label === target &&
       result.confidence >= CONFIDENCE_THRESHOLD
     );
-    if (result) recordAttempt(target, ok);
+    if (result) {
+      const p = recordAttempt(target, ok);
+      if (ok) feedbackCorrect(p.soundOn);
+      else feedbackWrong(p.soundOn);
+    }
     setResults((r) => [...r, ok]);
     setGraded(true);
   };
@@ -68,7 +82,7 @@ export default function QuizPage() {
   };
 
   const restart = () => {
-    setDeck((d) => shuffle(d));
+    setDeck(buildDeck(labels));
     setIdx(0);
     setResults([]);
     setPred(null);
@@ -77,6 +91,23 @@ export default function QuizPage() {
 
   const correct =
     pred && pred.label === target && pred.confidence >= CONFIDENCE_THRESHOLD;
+
+  // Chế độ ôn tập nhưng không có từ nào tới hạn
+  if (review && labels.length > 0 && deck.length === 0) {
+    return (
+      <main className="container">
+        <Link href="/" className="back">← Trang chủ</Link>
+        <div className="card center">
+          <div style={{ fontSize: 56 }}>✅</div>
+          <h1 className="h-title">Chưa có từ cần ôn!</h1>
+          <p className="h-sub">
+            Học thêm từ mới đi, mai quay lại ôn cho nhớ lâu nhé.
+          </p>
+          <Link href="/" className="btn btn--green">🏠 Về trang chủ</Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="container">
@@ -150,7 +181,7 @@ export default function QuizPage() {
           <div>
             <div className="row" style={{ marginBottom: 14 }}>
               <span className="muted">
-                Câu {idx + 1}/{deck.length}
+                {review ? "🔁 Ôn tập · " : ""}Câu {idx + 1}/{deck.length}
               </span>
               <span className="spacer" />
               <span className="muted">✅ {score} đúng</span>
@@ -215,5 +246,13 @@ export default function QuizPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={<main className="container">Đang tải…</main>}>
+      <QuizInner />
+    </Suspense>
   );
 }

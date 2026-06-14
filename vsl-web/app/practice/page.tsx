@@ -1,14 +1,16 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSignPractice } from "@/lib/useSignPractice";
 import { CONFIDENCE_THRESHOLD } from "@/lib/constants";
-import { recordAttempt } from "@/lib/progress";
+import { recordAttempt, loadProgress, countLearned } from "@/lib/progress";
 import { findLesson } from "@/lib/lessons";
 import { useLabels } from "@/lib/useLabels";
 import { practiceUrl, lessonUrl } from "@/lib/nav";
+import { feedbackCorrect, feedbackWrong } from "@/lib/feedback";
+import { BADGES, earnedBadgeIds } from "@/lib/badges";
 import type { Prediction } from "@/lib/classifier";
 
 function PracticeInner() {
@@ -32,6 +34,14 @@ function PracticeInner() {
   const [done, setDone] = useState(false);
   const [hasSample, setHasSample] = useState(true);
   const [step, setStep] = useState<"demo" | "practice">("demo");
+  const [newBadge, setNewBadge] = useState<string | null>(null);
+
+  // Tự ẩn toast huy hiệu sau 5s
+  useEffect(() => {
+    if (!newBadge) return;
+    const t = setTimeout(() => setNewBadge(null), 5000);
+    return () => clearTimeout(t);
+  }, [newBadge]);
 
   // Ngữ cảnh bài học: tìm từ kế tiếp để học liền mạch
   const { labels } = useLabels();
@@ -53,7 +63,15 @@ function PracticeInner() {
     if (result) {
       const ok =
         result.label === target && result.confidence >= CONFIDENCE_THRESHOLD;
-      recordAttempt(target, ok);
+      const before = loadProgress();
+      const badgesBefore = earnedBadgeIds(before, countLearned(before, labels));
+      const after = recordAttempt(target, ok);
+      if (ok) feedbackCorrect(after.soundOn);
+      else feedbackWrong(after.soundOn);
+      // Mở khóa huy hiệu mới?
+      const badgesAfter = earnedBadgeIds(after, countLearned(after, labels));
+      const fresh = [...badgesAfter].find((id) => !badgesBefore.has(id));
+      if (fresh) setNewBadge(fresh);
       setDone(true);
     }
   };
@@ -64,6 +82,7 @@ function PracticeInner() {
     setDone(false);
     setStep("demo");
     setHasSample(true);
+    setNewBadge(null);
     router.push(practiceUrl(word, lessonId || undefined));
   };
 
@@ -71,8 +90,22 @@ function PracticeInner() {
     pred && pred.label === target && pred.confidence >= CONFIDENCE_THRESHOLD;
   const sampleUrl = `/samples/${encodeURIComponent(target)}.mp4`;
 
+  const badge = BADGES.find((b) => b.id === newBadge);
+
   return (
     <main className="container">
+      {badge && (
+        <div className="badge-toast" onClick={() => setNewBadge(null)}>
+          <span className="badge-toast-emoji">{badge.emoji}</span>
+          <div>
+            <div className="badge-toast-title">Huy hiệu mới!</div>
+            <div className="badge-toast-sub">
+              {badge.emoji} {badge.title} — {badge.desc}
+            </div>
+          </div>
+        </div>
+      )}
+
       <Link href={lesson ? lessonUrl(lesson.id) : "/"} className="back">
         ← {lesson ? lesson.title : "Danh sách từ"}
       </Link>

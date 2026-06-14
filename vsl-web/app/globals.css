@@ -566,3 +566,117 @@ a {
   .practice-grid { grid-template-columns: 1fr; }
   .stats { grid-template-columns: 1fr; }
 }
+
+/* ===== Mục tiêu hôm nay ===== */
+.daily-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: var(--paper);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.goal-ring {
+  flex: 0 0 auto;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: conic-gradient(var(--green) var(--pct), #e9e3d0 0deg);
+  display: grid;
+  place-items: center;
+}
+.goal-ring-inner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: var(--border) solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.goal-num { font-size: 24px; font-weight: 900; }
+.goal-of { font-size: 12px; color: #6b6b6b; }
+.daily-text { flex: 1; min-width: 0; }
+.daily-streak { font-size: 20px; font-weight: 900; margin-bottom: 2px; }
+.goal-pick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.goal-chip {
+  width: 34px; height: 30px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+  font-weight: 800;
+  cursor: pointer;
+}
+.goal-chip--on { background: var(--yellow); box-shadow: var(--shadow-sm); }
+
+/* ===== Nút ôn tập ===== */
+.review-cta {
+  display: block;
+  margin: 14px 0 4px;
+  padding: 14px 16px;
+  background: var(--purple);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-weight: 800;
+  text-align: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+.review-cta:active { transform: translate(3px, 3px); box-shadow: var(--shadow-sm); }
+
+/* ===== Huy hiệu ===== */
+.section-title { font-size: 18px; font-weight: 900; margin: 0 0 12px; }
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+}
+.badge-item {
+  background: var(--paper);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.badge-item--locked { opacity: 0.5; filter: grayscale(1); }
+.badge-item-emoji { font-size: 32px; }
+.badge-item-title { font-weight: 800; font-size: 14px; }
+.badge-item-desc { font-size: 11px; color: #6b6b6b; }
+
+/* ===== Toast huy hiệu mới ===== */
+.badge-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--yellow);
+  border: var(--border) solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 16px;
+  cursor: pointer;
+  animation: pop 0.3s ease;
+}
+.badge-toast-emoji { font-size: 36px; }
+.badge-toast-title { font-weight: 900; }
+.badge-toast-sub { font-size: 13px; }
+@keyframes pop {
+  from { transform: translate(-50%, 20px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}

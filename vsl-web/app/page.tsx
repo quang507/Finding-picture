@@ -11,7 +11,16 @@ import {
   isLearned,
   countLearned,
   resetProgress,
+  dayStreak,
+  todayCount,
+  levelInfo,
+  dueWords,
+  setDailyGoal,
+  setSoundOn,
 } from "@/lib/progress";
+import { BADGES, earnedBadgeIds } from "@/lib/badges";
+
+const GOAL_OPTIONS = [3, 5, 10, 15];
 
 export default function Home() {
   const { labels, loading } = useLabels();
@@ -23,6 +32,16 @@ export default function Home() {
   const learnedCount = useMemo(
     () => countLearned(progress, labels),
     [labels, progress]
+  );
+
+  const streak = dayStreak(progress);
+  const today = todayCount(progress);
+  const goalPct = Math.min(100, Math.round((today / progress.dailyGoal) * 100));
+  const lvl = levelInfo(progress.score);
+  const due = useMemo(() => dueWords(progress, labels), [progress, labels]);
+  const earned = useMemo(
+    () => earnedBadgeIds(progress, learnedCount),
+    [progress, learnedCount]
   );
 
   const searching = query.trim().length > 0;
@@ -45,10 +64,46 @@ export default function Home() {
         </Link>
       </div>
 
+      {/* Mục tiêu hôm nay */}
+      <div className="daily-card">
+        <div
+          className="goal-ring"
+          style={{ ["--pct" as string]: `${goalPct * 3.6}deg` }}
+        >
+          <div className="goal-ring-inner">
+            <div className="goal-num">{today}</div>
+            <div className="goal-of">/{progress.dailyGoal}</div>
+          </div>
+        </div>
+        <div className="daily-text">
+          <div className="daily-streak">🔥 {streak} ngày liên tiếp</div>
+          <div className="muted">
+            {today >= progress.dailyGoal
+              ? "🎉 Đạt mục tiêu hôm nay rồi!"
+              : `Còn ${progress.dailyGoal - today} từ nữa là đạt mục tiêu hôm nay`}
+          </div>
+          <div className="goal-pick">
+            <span className="muted">Mục tiêu/ngày:</span>
+            {GOAL_OPTIONS.map((g) => (
+              <button
+                key={g}
+                className={`goal-chip ${g === progress.dailyGoal ? "goal-chip--on" : ""}`}
+                onClick={() => setProgress(setDailyGoal(g))}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="stats">
         <div className="stat stat--yellow">
-          <div className="stat-num">{progress.score}</div>
-          <div className="stat-label">Điểm</div>
+          <div className="stat-num">Lv.{lvl.level}</div>
+          <div className="stat-label">{progress.score} XP</div>
+          <div className="lesson-bar" style={{ marginTop: 8 }}>
+            <div className="lesson-bar-fill" style={{ width: `${lvl.pct}%` }} />
+          </div>
         </div>
         <div className="stat stat--green">
           <div className="stat-num">
@@ -58,9 +113,15 @@ export default function Home() {
         </div>
         <div className="stat stat--blue">
           <div className="stat-num">🔥 {progress.bestStreak}</div>
-          <div className="stat-label">Streak tốt nhất</div>
+          <div className="stat-label">Combo tốt nhất</div>
         </div>
       </div>
+
+      {due.length > 0 && (
+        <Link href="/quiz?mode=review" className="review-cta">
+          🔁 Ôn tập {due.length} từ tới hạn — giúp nhớ lâu hơn!
+        </Link>
+      )}
 
       <h1 className="h-title">Học ngôn ngữ ký hiệu VSL</h1>
       <p className="h-sub">
@@ -134,9 +195,38 @@ export default function Home() {
         </div>
       )}
 
-      {progress.score > 0 && (
-        <div className="row" style={{ marginTop: 28 }}>
-          <span className="muted">Muốn học lại từ đầu?</span>
+      {/* Huy hiệu */}
+      {!searching && (
+        <section style={{ marginTop: 32 }}>
+          <h2 className="section-title">🏅 Huy hiệu ({earned.size}/{BADGES.length})</h2>
+          <div className="badge-grid">
+            {BADGES.map((b) => {
+              const got = earned.has(b.id);
+              return (
+                <div
+                  key={b.id}
+                  className={`badge-item ${got ? "" : "badge-item--locked"}`}
+                  title={b.desc}
+                >
+                  <span className="badge-item-emoji">{got ? b.emoji : "🔒"}</span>
+                  <span className="badge-item-title">{b.title}</span>
+                  <span className="badge-item-desc">{b.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <div className="row" style={{ marginTop: 28 }}>
+        <button
+          className="btn btn--blue"
+          onClick={() => setProgress(setSoundOn(!progress.soundOn))}
+        >
+          {progress.soundOn ? "🔊 Tiếng: Bật" : "🔇 Tiếng: Tắt"}
+        </button>
+        <span className="spacer" />
+        {progress.score > 0 && (
           <button
             className="btn btn--yellow"
             onClick={() => {
@@ -148,8 +238,8 @@ export default function Home() {
           >
             ♻️ Reset tiến độ
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
