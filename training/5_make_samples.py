@@ -1,15 +1,13 @@
 """
 Bước 5 (tùy chọn): Tạo video MẪU cho web từ dataset gốc trên Hugging Face.
 
-Mỗi từ trong labels.json lấy 1 video ngắn, nén nhỏ, đặt tên đúng chuẩn web:
-    vsl-web/public/samples/<Tên từ>.mp4
+Dataset star092304/ViSignLanguage-Video đóng gói video trong dataset.zip.
+Script này: tải dataset.zip -> mở zip -> mỗi nhãn lấy 1 clip -> nén nhỏ ->
+lưu vsl-web/public/samples/<Tên từ>.mp4
 
-QUAN TRỌNG — vì sao map theo THỨ TỰ chứ không theo chữ:
-  Lúc train (2_extract_landmarks.py) nhãn = danh sách tên-thư-mục đã sorted().
-  labels.json giữ ĐÚNG thứ tự đó. Sau này chữ trong labels.json đã được sửa
-  mã (NFC / repair mojibake) nên KHÔNG còn khớp y hệt tên thư mục gốc trên HF.
-  => Ta sort tên thư mục dataset giống hệt lúc train rồi ghép theo chỉ số:
-     labels[i]  <->  sorted_folders[i]
+MAP THEO THỨ TỰ (không theo chữ): lúc train, nhãn = sorted(tên thư mục),
+labels.json giữ đúng thứ tự đó nhưng chữ đã sửa mã -> ghép theo chỉ số:
+    labels[i] <-> sorted_folders[i]
 
 Chạy:
     pip install huggingface_hub imageio-ffmpeg
@@ -17,7 +15,10 @@ Chạy:
 """
 import json
 import os
+import shutil
 import subprocess
+import tempfile
+import zipfile
 from collections import defaultdict
 
 from huggingface_hub import HfApi, hf_hub_download
@@ -39,21 +40,17 @@ def ffmpeg_exe() -> str:
         return "ffmpeg"
 
 
-def detect_label_depth(videos, n_labels):
-    """Tìm độ sâu thư mục mà số nhóm = số nhãn (tự dò cấu trúc lồng nhau)."""
-    max_depth = max(len(v.split("/")) for v in videos)
-    for d in range(1, max_depth):
-        groups = {v.split("/")[-1 - d] for v in videos if len(v.split("/")) > d}
+def detect_depth(entries, n_labels):
+    """Độ sâu thư mục cho số nhóm = số nhãn (tự dò cấu trúc lồng nhau)."""
+    maxd = max(len(e.split("/")) for e in entries)
+    best, best_groups = 1, -1
+    for d in range(1, maxd):
+        groups = {e.split("/")[-1 - d] for e in entries if len(e.split("/")) > d}
         if len(groups) == n_labels:
             return d, len(groups)
-    # không khớp tuyệt đối -> trả độ sâu có nhiều nhóm nhất để chẩn đoán
-    best = max(
-        range(1, max_depth),
-        key=lambda d: len({v.split("/")[-1 - d] for v in videos
-                           if len(v.split("/")) > d}),
-    )
-    groups = {v.split("/")[-1 - best] for v in videos if len(v.split("/")) > best}
-    return best, len(groups)
+        if len(groups) > best_groups:
+            best, best_groups = d, len(groups)
+    return best, best_groups
 
 
 def main():
@@ -61,59 +58,73 @@ def main():
     labels = json.load(open(LABELS_JSON, encoding="utf-8"))
     n = len(labels)
 
-    print(f"Liệt kê file trong {DATASET_REPO} ...")
     files = HfApi().list_repo_files(DATASET_REPO, repo_type="dataset")
-    videos = [f for f in files if f.lower().endswith(VIDEO_EXTS)]
-    print(f"  {len(videos)} video, {n} nhãn trong labels.json")
+    zips = [f for f in files if f.lower().endswith(".zip")]
+    target = next((z for z in zips if "dataset" in z.lower()), zips[0] if zips else None)
+    if not target:
+        raise SystemExit(f"Không thấy .zip nào. File: {files[:20]}")
 
-    if not videos:
-        raise SystemExit("Dataset không có video? In thử vài file:\n  "
-                         + "\n  ".join(files[:20]))
+    print(f"Tải {target} (có thể to, chờ chút) ...")
+    zpath = hf_hub_download(DATASET_REPO, target, repo_type="dataset")
 
-    depth, n_groups = detect_label_depth(videos, n)
-    print(f"  Dùng độ sâu thư mục = {depth} (số nhóm = {n_groups})")
+    zf = zipfile.ZipFile(zpath)
+    entries = [e for e in zf.namelist() if e.lower().endswith(VIDEO_EXTS)]
+    print(f"  {len(entries)} video trong zip, {n} nhãn")
+    if not entries:
+        raise SystemExit("Trong zip không có video. Vài entry:\n  "
+                         + "\n  ".join(zf.namelist()[:25]))
+
+    depth, ngroups = detect_depth(entries, n)
+    print(f"  Độ sâu thư mục = {depth} (số nhóm = {ngroups})")
 
     by_folder = defaultdict(list)
-    for v in videos:
-        parts = v.split("/")
+    for e in entries:
+        parts = e.split("/")
         if len(parts) > depth:
-            by_folder[parts[-1 - depth]].append(v)
+            by_folder[parts[-1 - depth]].append(e)
 
-    folders = sorted(by_folder.keys())  # SẮP XẾP giống lúc train
-    print(f"  5 thư mục đầu (đã sort): {folders[:5]}")
+    folders = sorted(by_folder.keys())
+    print(f"  5 thư mục đầu: {folders[:5]}")
 
     if len(folders) != n:
-        print("\n⚠️  Số thư mục KHÁC số nhãn — không map theo thứ tự an toàn được.")
-        print(f"   Thư mục ({len(folders)}): {folders}")
-        raise SystemExit("Gửi danh sách thư mục trên cho Claude để map thủ công.")
+        print(f"\n⚠️  Số thư mục ({len(folders)}) KHÁC số nhãn ({n}).")
+        print(f"   Danh sách thư mục: {folders}")
+        raise SystemExit("Gửi danh sách thư mục này cho Claude để map tay.")
 
-    print("  Ví dụ map thứ tự (kiểm tra mắt thường):")
-    for i in range(min(5, n)):
-        print(f"    [{i}] folder={folders[i]!r}  ->  label={labels[i]!r}")
+    print("  Kiểm tra map (mắt thường):")
+    for i in range(min(6, n)):
+        print(f"    [{i}] {folders[i]!r} -> {labels[i]!r}")
 
     ff = ffmpeg_exe()
     made, fail = 0, []
+    tmpdir = tempfile.mkdtemp()
     for i, label in enumerate(labels):
-        clips = by_folder[folders[i]]
-        src_rel = sorted(clips, key=len)[0]
         out = os.path.join(SAMPLES_DIR, f"{label}.mp4")
         if os.path.exists(out):
             made += 1
             continue
+        entry = sorted(by_folder[folders[i]], key=len)[0]
+        raw = os.path.join(tmpdir, "in" + os.path.splitext(entry)[1])
         try:
-            src = hf_hub_download(DATASET_REPO, src_rel, repo_type="dataset")
+            with zf.open(entry) as src, open(raw, "wb") as dst:
+                shutil.copyfileobj(src, dst)
             cmd = [
-                ff, "-y", "-i", src, "-t", str(MAX_SECONDS),
+                ff, "-y", "-i", raw, "-t", str(MAX_SECONDS),
                 "-vf", f"scale='min({MAX_WIDTH},iw)':-2",
                 "-an", "-c:v", "libx264", "-crf", "30", "-preset", "veryfast",
                 "-movflags", "+faststart", out,
             ]
             subprocess.run(cmd, check=True, capture_output=True)
             made += 1
-            print(f"    ✓ [{i+1}/{n}] {label}")
+            if (i + 1) % 10 == 0 or i == n - 1:
+                print(f"    ✓ {i+1}/{n}")
         except Exception as e:
             print(f"    ✗ {label}: {str(e)[:120]}")
             fail.append(label)
+        finally:
+            if os.path.exists(raw):
+                os.remove(raw)
+    shutil.rmtree(tmpdir, ignore_errors=True)
 
     print(f"\nXong: {made}/{n} video -> {SAMPLES_DIR}")
     if fail:
